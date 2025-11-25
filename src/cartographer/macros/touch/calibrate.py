@@ -145,10 +145,10 @@ class TouchCalibrateMacro(Macro):
         speed = params.get_int("SPEED", default=2, minval=1, maxval=5)
         threshold_start = params.get_int("START", default=500, minval=100)
         threshold_max = params.get_int("MAX", default=3000, minval=threshold_start)
-        debug = params.get_boolean("DEBUG", default=False)
+        debug = params.get_int("DEBUG", default=0)
 
         debug_file = None
-        if debug:
+        if debug > 0:
             debug_file = "/tmp/cartographer_calibrate_debug.csv"
             try:
                 with open(debug_file, "w", newline="") as f:

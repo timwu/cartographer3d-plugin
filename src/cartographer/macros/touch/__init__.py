@@ -7,3 +7,4 @@ from cartographer.macros.touch.calibrate import (
 )
 from cartographer.macros.touch.home import TouchHomeMacro as TouchHomeMacro
 from cartographer.macros.touch.probe import TouchProbeMacro as TouchProbeMacro
+from cartographer.macros.touch.debug import TouchDebugMacro as TouchDebugMacro

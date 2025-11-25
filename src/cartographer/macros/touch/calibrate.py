@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, final
@@ -144,6 +145,19 @@ class TouchCalibrateMacro(Macro):
         speed = params.get_int("SPEED", default=2, minval=1, maxval=5)
         threshold_start = params.get_int("START", default=500, minval=100)
         threshold_max = params.get_int("MAX", default=3000, minval=threshold_start)
+        debug = params.get_boolean("DEBUG", default=False)
+
+        debug_file = None
+        if debug:
+            debug_file = "/tmp/cartographer_calibrate_debug.csv"
+            try:
+                with open(debug_file, "w", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["TouchID", "Threshold", "Time", "Frequency", "Temperature", "X", "Y", "Z"])
+                logger.info("Debug mode enabled. Writing data to %s", debug_file)
+            except Exception as e:
+                logger.error("Failed to create debug file: %s", e)
+                debug_file = None
 
         if not self._toolhead.is_homed("x") or not self._toolhead.is_homed("y"):
             msg = "Must home x and y before calibration"
@@ -170,6 +184,7 @@ class TouchCalibrateMacro(Macro):
             TouchModeConfiguration.from_config(self._config),
             threshold=threshold_start,
             speed=speed,
+            debug_file=debug_file,
         )
 
         with force_home_z(self._toolhead):
@@ -383,6 +398,7 @@ class CalibrationTouchMode(TouchMode):
         *,
         threshold: int,
         speed: float,
+        debug_file: str | None = None,
     ) -> None:
         model = TouchModelConfiguration("calibration", threshold, speed, 0)
         super().__init__(
@@ -391,6 +407,8 @@ class CalibrationTouchMode(TouchMode):
             replace(config, models={"calibration": model}),
         )
         self.load_model("calibration")
+        self.debug_file = debug_file
+        self._touch_id_counter = 0
 
     def set_threshold(self, threshold: int) -> None:
         """Update the threshold for the calibration model."""
@@ -440,3 +458,43 @@ class CalibrationTouchMode(TouchMode):
             )
             return True
         return False
+
+    @override
+    def _perform_single_probe(self) -> float:
+        if not self.debug_file:
+            return super()._perform_single_probe()
+
+        # Debug logic
+        self._touch_id_counter += 1
+        current_touch_id = self._touch_id_counter
+        current_threshold = self.get_model().threshold
+
+        session = self._mcu.start_session()
+        self._mcu.start_streaming()
+        try:
+            result = super()._perform_single_probe()
+        finally:
+            self._mcu.stop_streaming()
+        
+        samples = session.get_items()
+        session.stream.end_session(session)
+        
+        if samples:
+            try:
+                with open(self.debug_file, "a", newline="") as f:
+                    writer = csv.writer(f)
+                    for sample in samples:
+                        writer.writerow([
+                            current_touch_id,
+                            current_threshold,
+                            sample.time,
+                            sample.frequency,
+                            sample.temperature,
+                            sample.position.x if sample.position else "",
+                            sample.position.y if sample.position else "",
+                            sample.position.z if sample.position else "",
+                        ])
+            except Exception as e:
+                logger.error("Failed to write debug data: %s", e)
+                
+        return result

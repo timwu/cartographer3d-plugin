@@ -36,6 +36,7 @@ from cartographer.macros.touch import (
     DEFAULT_TOUCH_MODEL_NAME,
     TouchAccuracyMacro,
     TouchCalibrateMacro,
+    TouchDebugMacro,
     TouchHomeMacro,
     TouchProbeMacro,
 )
@@ -281,6 +282,14 @@ class PrinterCartographer:
                             home_position=self.config.bed_mesh.zero_reference_position,
                             travel_speed=self.config.general.travel_speed,
                             random_radius=self.config.touch.home_random_radius,
+                        ),
+                    ),
+                    self._register_macro(
+                        "TOUCH_DEBUG",
+                        TouchDebugMacro(
+                            self.touch_mode,
+                            self.mcu,
+                            toolhead,
                         ),
                     ),
                 ]
